@@ -43,3 +43,4 @@ def verify_demo(query: str, AUI: dict, result_shares: dict, proof_shares: dict, 
         combined_proofs.append(p)
     expected = recompute_proofs_only(query, AUI, suppression)
     return combined_proofs == expected
+
