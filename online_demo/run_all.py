@@ -4,6 +4,13 @@ import subprocess
 import sys
 import time
 
+THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJ_ROOT = os.path.abspath(os.path.join(THIS_DIR, '..'))
+if PROJ_ROOT not in sys.path:
+    sys.path.insert(0, PROJ_ROOT)
+
+from online_demo.runtime_utils import start_csp_servers, stop_processes
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -13,23 +20,14 @@ def main():
     ap.add_argument("--user-db", type=str, default=None)
     args = ap.parse_args()
 
-    # Start 3 CSP servers
     ports = [8001, 8002, 8003]
     procs = []
     try:
-        this_dir = os.path.dirname(os.path.abspath(__file__))
-        csp_path = os.path.join(this_dir, 'csp_server.py')
-        aui_path = os.path.join(this_dir, 'aui.pkl')
-        user_db_path = args.user_db or os.path.join(this_dir, 'users_db.json')
-        for p in ports:
-            procs.append(
-                subprocess.Popen(
-                    [sys.executable, csp_path, "--port", str(p), "--aui", aui_path, "--user-db", user_db_path]
-                )
-            )
+        aui_path = os.path.join(THIS_DIR, 'aui.pkl')
+        user_db_path = args.user_db or os.path.join(THIS_DIR, 'users_db.json')
+        procs = start_csp_servers(ports, aui_path=aui_path, user_db_path=user_db_path)
         time.sleep(1.5)
-        # Run client
-        client_path = os.path.join(this_dir, 'client.py')
+        client_path = os.path.join(THIS_DIR, 'client.py')
         query = " ".join(args.query) if args.query else None
         base_cmd = [sys.executable, client_path, "--username", args.username, "--password", args.password]
         if query:
@@ -37,8 +35,7 @@ def main():
         else:
             subprocess.run(base_cmd)
     finally:
-        for p in procs:
-            p.terminate()
+        stop_processes(procs)
 
 
 if __name__ == '__main__':

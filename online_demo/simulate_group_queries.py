@@ -8,34 +8,18 @@ import os
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJ_ROOT = os.path.abspath(os.path.join(THIS_DIR, ".."))
+if PROJ_ROOT not in sys.path:
+    sys.path.insert(0, PROJ_ROOT)
 
-
-def http_post(url: str, obj: dict) -> dict:
-    data = json.dumps(obj).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", errors="ignore")
-        try:
-            parsed = json.loads(body)
-            msg = parsed.get("error", body)
-        except Exception:
-            msg = body or str(e)
-        raise RuntimeError(f"POST {url} failed ({e.code}): {msg}") from e
-
-
-def login(base: str, username: str, password: str) -> str:
-    resp = http_post(base + "/auth/login", {"username": username, "password": password, "ttl_seconds": 3600})
-    token = str(resp.get("auth_token", "")).strip()
-    if not token:
-        raise RuntimeError("login returned empty auth_token")
-    return token
+from online_demo.runtime_utils import (
+    http_post,
+    login_and_get_token,
+    start_csp_servers,
+    stop_processes,
+)
 
 
 def run_client(query: str, username: str, password: str, csp_urls: list[str]) -> tuple[int, str]:
@@ -67,28 +51,13 @@ def main() -> None:
 
     ports = [8001, 8002, 8003]
     csp_urls = [f"http://127.0.0.1:{p}" for p in ports]
-    csp_script = os.path.join(THIS_DIR, "csp_server.py")
     procs: list[subprocess.Popen] = []
     try:
-        for p in ports:
-            procs.append(
-                subprocess.Popen(
-                    [
-                        sys.executable,
-                        csp_script,
-                        "--port",
-                        str(p),
-                        "--aui",
-                        args.aui,
-                        "--user-db",
-                        args.user_db,
-                    ]
-                )
-            )
+        procs = start_csp_servers(ports, aui_path=args.aui, user_db_path=args.user_db)
         time.sleep(1.8)
 
         # Use admin account to create a new privileged group and user online.
-        admin_token = login(csp_urls[0], "admin", "admin123")
+        admin_token = login_and_get_token(csp_urls[0], "admin", "admin123")
         http_post(
             csp_urls[0] + "/admin/create_group",
             {
@@ -176,8 +145,7 @@ def main() -> None:
 
         print("[simulate] All group-based communication checks passed.")
     finally:
-        for p in procs:
-            p.terminate()
+        stop_processes(procs)
 
 
 if __name__ == "__main__":

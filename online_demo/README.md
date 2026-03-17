@@ -71,6 +71,10 @@ If the native module is not built, the system automatically falls back to pure P
 - `POST /admin/list_groups` - list groups (`can_manage_groups` required).
 - `POST /eval` - secure search execution, now requires `auth_token`.
 
+## Internal layout note
+- `online_demo/runtime_utils.py` centralizes shared HTTP/login/CSP-process helpers.
+- `client.py`, `run_all.py`, and `simulate_group_queries.py` reuse this module to reduce duplicated path/network code.
+
 ## Request sequence diagram
 ```mermaid
 sequenceDiagram

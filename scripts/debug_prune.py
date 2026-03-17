@@ -3,6 +3,7 @@
 import base64
 import sys
 from pathlib import Path
+import warnings
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -67,6 +68,9 @@ def run(query, cfg, aui, keys, model):
 
 
 def main():
+    msg = "scripts/debug_prune.py is deprecated. Prefer scripts/benchmark_pruning.py."
+    print(f"[deprecated] {msg}", file=sys.stderr)
+    warnings.warn(msg, FutureWarning, stacklevel=2)
     cfg = load_config('conFig.ini')
     dict_list = prepare_dataset.load_and_transform('us-colleges-and-universities.csv')[:500]
     db = convert_dataset(dict_list, cfg)

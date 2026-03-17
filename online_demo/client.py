@@ -1,9 +1,6 @@
 import argparse
-import json
 import os
 import sys
-import urllib.request
-import urllib.error
 
 # Ensure project root on sys.path
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -11,6 +8,7 @@ PROJ_ROOT = os.path.abspath(os.path.join(THIS_DIR, '..'))
 if PROJ_ROOT not in sys.path:
     sys.path.insert(0, PROJ_ROOT)
 
+from online_demo.runtime_utils import http_post, login_and_get_token
 from config_loader import load_config
 from secure_search import (
     prepare_query_plan,
@@ -21,35 +19,6 @@ from secure_search import (
     run_fx_hmac_verification,
 )
 from secure_search.indexing import load_index_artifacts
-
-
-def http_post(url: str, obj: dict) -> dict:
-    data = json.dumps(obj).encode('utf-8')
-    req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
-    try:
-        with urllib.request.urlopen(req) as resp:
-            body = resp.read()
-            return json.loads(body.decode('utf-8'))
-    except urllib.error.HTTPError as e:
-        body = e.read().decode('utf-8', errors='ignore')
-        try:
-            parsed = json.loads(body)
-            msg = parsed.get('error', body)
-        except Exception:
-            msg = body or str(e)
-        raise RuntimeError(f"POST {url} failed ({e.code}): {msg}") from e
-
-
-def login_and_get_token(csp_base: str, username: str, password: str, ttl_seconds: int = 3600) -> str:
-    resp = http_post(
-        csp_base + '/auth/login',
-        {'username': username, 'password': password, 'ttl_seconds': ttl_seconds},
-    )
-    token = str(resp.get('auth_token', '')).strip()
-    if not token:
-        raise RuntimeError("login succeeded but no auth_token was returned")
-    return token
-
 
 def run_one_plan(plan, csp_endpoints, auth_token: str, aui: dict, keys: tuple):
     responses = []
