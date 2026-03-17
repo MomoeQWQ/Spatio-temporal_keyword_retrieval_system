@@ -12,6 +12,7 @@ from GBF import fingerprint
 from SetupProcess import F
 from verification import verify_fx_hmac
 from DMPF import Gen
+from .native_accel import xor_bytes, xor_pair_lists
 
 
 def _hash_pos(item: str, size: int, k: int) -> List[int]:
@@ -149,9 +150,9 @@ def combine_csp_responses(plan: QueryPlan, responses: List[dict], aui: dict) -> 
         for resp in responses:
             token_vecs = resp["result_shares"][t_idx]
             token_proof = resp["proof_shares"][t_idx]
-            for i in range(n):
-                vec[i] = bytes(a ^ b for a, b in zip(vec[i], _decode(token_vecs[i])))
-            proof = bytes(a ^ b for a, b in zip(proof, _decode(token_proof)))
+            decoded_vecs = [_decode(blob) for blob in token_vecs]
+            vec = xor_pair_lists(vec, decoded_vecs)
+            proof = xor_bytes(proof, _decode(token_proof))
         combined_vecs.append(vec)
         combined_proofs.append(proof)
 
@@ -183,8 +184,8 @@ def decrypt_matches(plan: QueryPlan, combined_vecs: List[List[bytes]], aui: dict
             pad_acc = b"\x00" * byte_len
             for j in S:
                 start = (m1 + j) * byte_len
-                pad_acc = bytes(a ^ b for a, b in zip(pad_acc, pad[start:start + byte_len]))
-            plain = bytes(a ^ b for a, b in zip(enc_vec, pad_acc))
+                pad_acc = xor_bytes(pad_acc, pad[start:start + byte_len])
+            plain = xor_bytes(enc_vec, pad_acc)
             matches[row_idx - 1] &= (plain == fp)
 
     spatial_ok = [False] * n if plan.spatial_tokens else [True] * n
@@ -199,8 +200,8 @@ def decrypt_matches(plan: QueryPlan, combined_vecs: List[List[bytes]], aui: dict
             pad_acc = b"\x00" * byte_len
             for j in S:
                 start = j * byte_len
-                pad_acc = bytes(a ^ b for a, b in zip(pad_acc, pad[start:start + byte_len]))
-            plain = bytes(a ^ b for a, b in zip(enc_vec, pad_acc))
+                pad_acc = xor_bytes(pad_acc, pad[start:start + byte_len])
+            plain = xor_bytes(enc_vec, pad_acc)
             if plain == fp:
                 spatial_ok[row_idx - 1] = True
 

@@ -10,6 +10,7 @@ from .query import (
 )
 from .expansion_client import prepare_query_plan_with_expansion, ExpandedQueryPlan
 from .query_expansion import expand_query_keywords, ExpansionResult
+from .result_ranking import rank_results_by_priority, RankingWeights
 
 __all__ = [
     'build_index_from_csv',
@@ -24,4 +25,6 @@ __all__ = [
     'run_fx_hmac_verification',
     'expand_query_keywords',
     'ExpansionResult',
+    'rank_results_by_priority',
+    'RankingWeights',
 ]

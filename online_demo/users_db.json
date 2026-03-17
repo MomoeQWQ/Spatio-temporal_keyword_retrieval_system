@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "token_secret": "d3fc5a4f0cd4935d223adfdf767179a52ab0f61100d9de1133a96bf3b2fccc16",
+  "groups": {
+    "admin": {
+      "can_search": true,
+      "allow_spatial": true,
+      "max_keywords": 10,
+      "can_manage_users": true,
+      "can_manage_groups": true
+    },
+    "analyst": {
+      "can_search": true,
+      "allow_spatial": true,
+      "max_keywords": 6,
+      "can_manage_users": false,
+      "can_manage_groups": false
+    },
+    "guest": {
+      "can_search": true,
+      "allow_spatial": false,
+      "max_keywords": 3,
+      "can_manage_users": false,
+      "can_manage_groups": false
+    }
+  },
+  "users": {
+    "admin": {
+      "password": {
+        "salt": "4824c131ad563f4191460ce5e3a04f66",
+        "hash": "e9134686008b00d65dad82d249a723a100f2e2f1013d7f52a97795a157de5df8",
+        "iterations": 120000
+      },
+      "groups": [
+        "admin"
+      ],
+      "active": true
+    },
+    "alice": {
+      "password": {
+        "salt": "bc373989e6df29cdaa6bcb3a64ccab0b",
+        "hash": "3a1e06e19e4378e9d28ff0e7d72c89662c93979261a060353b5a633360e90281",
+        "iterations": 120000
+      },
+      "groups": [
+        "analyst"
+      ],
+      "active": true
+    },
+    "bob": {
+      "password": {
+        "salt": "96e8b6a1b101fb6f7b417fe9f9c5677b",
+        "hash": "8ed6d146a2bc5c8517684068736745389d5e50a17f7030f6125cf59d7042d220",
+        "iterations": 120000
+      },
+      "groups": [
+        "guest"
+      ],
+      "active": true
+    }
+  }
+}

@@ -1,52 +1,123 @@
-﻿# Online Demo (Client + CSPs)
+﻿# Online Demo (Client + CSPs + Initial User RBAC)
 
-## Steps / 操作步骤
-1. Prepare AUI and keys / 生成索引
-`
+## 1) Build index artifacts
+```bash
 python online_demo/owner_setup.py
-`
-调用 secure_search.build_index_from_csv 生成 online_demo/aui.pkl 与 online_demo/K.pkl。修改 FX/HMAC 或配置后，请重跑本步骤。
+```
+This produces `online_demo/aui.pkl` and `online_demo/K.pkl`.
 
-2. Start CSP servers and run client / 启动 CSP 与客户端
-`
+## 2) Quick run with auth-enabled defaults
+```bash
 python online_demo/run_all.py "ORLANDO; R: 28.3,-81.5,28.7,-81.2"
-`
-启动三个 CSP（8001/8002/8003）并运行客户端。期望看到 [client] Verify: pass，打印最多 20 条匹配。
+```
+`run_all.py` starts 3 CSP nodes (`8001/8002/8003`) and runs the client with default user `alice/alice123`.
 
-Keyword-only / 仅关键词：
-`
-echo ORLANDO | python online_demo/run_all.py
-`
+## 3) Run as a different user/group
+```bash
+python online_demo/run_all.py --username bob --password bob123 "ORLANDO"
+```
 
-### Custom options / 自定义参数
-`
+## 3.1) Expansion + priority ranking
+`online_demo/client.py` now supports platform-style ranking on top of expansion recall:
+```bash
 python online_demo/client.py \
-  --aui online_demo/aui.pkl \
-  --keys online_demo/K.pkl \
-  --config conFig.ini \
-  --csp http://127.0.0.1:8001 http://127.0.0.1:8002 http://127.0.0.1:8003 \
-  --query "ORLANDO; R: 28.3,-81.5,28.7,-81.2"
-`
-支持自定义索引文件路径与 CSP 端点列表。
+  --query "ORLANDO UNIVERSITY; R: 28.2,-81.6,28.8,-81.1" \
+  --expansion-mode fallback \
+  --top-k 20
+```
+Optional expansion backends:
+- `--expansion-mode none` : only base query.
+- `--expansion-mode fallback` : local synonym expansion.
+- `--expansion-mode gemini` : Gemini expansion (falls back automatically if unavailable).
 
-## Design / 设计要点
-- CSP (csp_server.py) 读取 ui.pkl 并暴露 /eval，返回 XOR 份额与 FX 证明份额。
-- Client (client.py) 使用 secure_search.query.prepare_query_plan 完成分词、空间离散化与 PRP+Cuckoo+DMPF 份额生成。
-- 使用 combine_csp_responses 合并响应，decrypt_matches 解密匹配，
-un_fx_hmac_verification 验证 FX+HMAC 等式。
+Priority score is a weighted sum of:
+- base-query hit bonus (`base_query_hit=80`)
+- expansion-subquery hit bonus (`expansion_query_hit=22`)
+- exact token match in `NAME`/`ADDRESS,CITY,STATE`
+- synonym token match in `NAME`/`ADDRESS,CITY,STATE`
+- exact/synonym token coverage
+- ordered phrase bonus in `NAME`
+- spatial range bonus when coordinates are inside query `R:`.
 
-## Configuration / 配置
-- Bloom filter 尺寸/哈希数、安全参数 lambda
-- Cuckoo 参数 cuckoo.*
-- 网格参数 spatial_grid.*
+## 4) New local simulation for group-based communication
+```bash
+python online_demo/simulate_group_queries.py
+```
+This script:
+- starts local CSP servers,
+- logs in as `admin`,
+- creates a new group and user online (`power_user` / `charlie`),
+- runs cross-group query checks (allowed and denied scenarios).
 
-## GUI Alternative / 图形界面
-1) python gui_demo/server_gui.py —— 选择 ui.pkl、设端口并启动；
-2) python gui_demo/client_gui.py —— 选择 ui.pkl/K.pkl/conFig.ini/数据集，填写端点与查询并运行。
+## Optional C++ acceleration (same project layout)
+Build the optional native module in-place:
+```bash
+python setup_native_accel.py build_ext --inplace --compiler=mingw32
+```
+If the native module is not built, the system automatically falls back to pure Python.
 
-CLI 与 GUI 共用 secure_search 接口。
+## Default demo accounts
+- `admin / admin123` (can manage users and groups)
+- `alice / alice123` (analyst group, spatial query allowed)
+- `bob / bob123` (guest group, spatial query denied)
 
+## Server endpoints (initial implementation)
+- `POST /auth/login` - username/password login, returns signed `auth_token`.
+- `POST /auth/whoami` - get user profile from token.
+- `POST /admin/create_group` - upsert group policy (`can_manage_groups` required).
+- `POST /admin/create_user` - upsert user (`can_manage_users` required).
+- `POST /admin/assign_groups` - update user groups (`can_manage_users` required).
+- `POST /admin/list_users` - list users (`can_manage_users` required).
+- `POST /admin/list_groups` - list groups (`can_manage_groups` required).
+- `POST /eval` - secure search execution, now requires `auth_token`.
 
-## Multi-keyword Query / ????????
-- ?????????? AND????`ORLANDO ENGINEERING UNIVERSITY`?
-- ???????`...; R: 28.3,-81.5,28.7,-81.2`???????? cell??? OR?
+## Request sequence diagram
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as User
+    participant C as Client (online_demo/client.py)
+    participant S1 as CSP-1
+    participant S2 as CSP-2
+    participant S3 as CSP-3
+    participant DB as users_db.json
+
+    U->>C: Input query + credentials
+    C->>S1: POST /auth/login (username, password)
+    S1->>DB: Load user + verify password
+    DB-->>S1: User profile + groups
+    S1-->>C: auth_token (signed, exp)
+
+    C->>C: Build query plan (DMPF shares per party)
+    par Per-party eval
+        C->>S1: POST /eval (party_id=0, tokens, auth_token)
+        S1->>DB: Verify token + merge group permissions
+        S1-->>C: result_shares[0], proof_shares[0]
+    and
+        C->>S2: POST /eval (party_id=1, tokens, auth_token)
+        S2->>DB: Verify token + authorize query
+        S2-->>C: result_shares[1], proof_shares[1]
+    and
+        C->>S3: POST /eval (party_id=2, tokens, auth_token)
+        S3->>DB: Verify token + authorize query
+        S3-->>C: result_shares[2], proof_shares[2]
+    end
+
+    C->>C: XOR combine shares + decrypt matches + FX/HMAC verify
+    C-->>U: Verify pass/fail + match list
+
+    alt Permission denied (e.g., guest spatial query)
+        S2-->>C: 403 forbidden
+        C-->>U: Error: not allowed to issue spatial queries
+    end
+```
+
+## Group permission model (demo version)
+Each group can define:
+- `can_search`
+- `allow_spatial`
+- `max_keywords`
+- `can_manage_users`
+- `can_manage_groups`
+
+Request authorization is checked in `/eval` before CSP share computation.
