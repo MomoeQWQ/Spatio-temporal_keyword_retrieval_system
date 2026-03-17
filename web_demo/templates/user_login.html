@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block body %}
+<section class="card">
+  <h2>客户端登录</h2>
+  <p class="muted">先登录用户，再进入查询页面。当前 CSP 状态：<strong>{{ "运行中" if csp_running else "未运行" }}</strong></p>
+  <form method="post" action="{{ url_for('login') }}" class="grid2">
+    <label>用户名
+      <input type="text" name="username" value="alice" required>
+    </label>
+    <label>密码
+      <input type="password" name="password" value="alice123" required>
+    </label>
+    <label>Token TTL(秒)
+      <input type="number" name="ttl_seconds" value="3600" min="60">
+    </label>
+    <div class="form-actions">
+      <button type="submit">登录并进入查询</button>
+    </div>
+  </form>
+</section>
+{% endblock %}
