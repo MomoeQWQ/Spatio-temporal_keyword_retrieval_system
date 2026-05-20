@@ -1,0 +1,6 @@
+pandas>=1.5
+numpy>=1.23
+matplotlib>=3.6
+Flask>=2.2
+# Optional: only required when using --expansion-mode gemini
+google-generativeai>=0.8

@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block body %}
+<section class="card">
+  <div class="card-head">
+    <h2>客户端查询</h2>
+    <form method="post" action="{{ url_for('logout') }}">
+      <button class="ghost" type="submit">退出登录</button>
+    </form>
+  </div>
+  <p class="muted">
+    当前用户：<strong>{{ user.username }}</strong> |
+    CSP：<strong>{{ "运行中" if csp_running else "未运行" }}</strong> |
+    端口：<strong>{{ cfg.csp_ports|join(', ') }}</strong>
+  </p>
+  <form method="post" action="{{ url_for('search_submit') }}" class="query-form">
+    <label>查询语句
+      <input type="text" name="query" value="{{ form_data.query or '' }}" placeholder="ORLANDO UNIVERSITY; R: 28.2,-81.6,28.8,-81.1" required>
+    </label>
+    <div class="grid3">
+      <label>扩展模式
+        <select name="expansion_mode">
+          {% set mode = form_data.expansion_mode or 'fallback' %}
+          <option value="none" {{ 'selected' if mode == 'none' else '' }}>none</option>
+          <option value="fallback" {{ 'selected' if mode == 'fallback' else '' }}>fallback</option>
+          <option value="gemini" {{ 'selected' if mode == 'gemini' else '' }}>gemini</option>
+        </select>
+      </label>
+      <label>最大联想词数
+        <input type="number" name="max_expansion_terms" value="{{ form_data.max_expansion_terms or 5 }}" min="1" max="10">
+      </label>
+      <label>Top-K
+        <input type="number" name="top_k" value="{{ form_data.top_k or 20 }}" min="1" max="100">
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="submit">执行查询</button>
+    </div>
+  </form>
+</section>
+
+{% if summary %}
+<section class="card">
+  <h3>查询摘要</h3>
+  <div class="summary-grid">
+    <div><span>验证结果</span><strong>{{ summary.verify }}</strong></div>
+    <div><span>匹配数量</span><strong>{{ summary.match_count }}</strong></div>
+    <div><span>新增联想词</span><strong>{{ summary.added_tokens|join(', ') if summary.added_tokens else '无' }}</strong></div>
+  </div>
+  {% if summary.expansion_message %}
+  <p class="muted">{{ summary.expansion_message }}</p>
+  {% endif %}
+  <table class="table compact">
+    <thead>
+      <tr><th>#</th><th>子查询</th><th>命中数</th><th>验证</th></tr>
+    </thead>
+    <tbody>
+      {% for item in summary.subqueries %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ item.query }}</td>
+        <td>{{ item.hits }}</td>
+        <td>{{ 'pass' if item.verify else 'fail' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section class="card">
+  <h3>排序结果</h3>
+  <p class="muted">点击列表头可在前端按列排序。</p>
+  <table class="table" id="result-table">
+    <thead>
+      <tr>
+        <th data-key="rank">#</th>
+        <th data-key="id">IPEDSID</th>
+        <th data-key="name">Name</th>
+        <th data-key="city">City</th>
+        <th data-key="state">State</th>
+        <th data-key="score">Score</th>
+        <th data-key="source">Source</th>
+        <th data-key="address">Address</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in results %}
+      <tr>
+        <td>{{ row.rank }}</td>
+        <td>{{ row.id }}</td>
+        <td>{{ row.name }}</td>
+        <td>{{ row.city }}</td>
+        <td>{{ row.state }}</td>
+        <td>{{ row.score }}</td>
+        <td>{{ row.source }}</td>
+        <td>{{ row.address }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<script>
+(() => {
+  const table = document.getElementById("result-table");
+  if (!table) return;
+  const headers = table.querySelectorAll("th[data-key]");
+  headers.forEach((th, idx) => {
+    let desc = false;
+    th.style.cursor = "pointer";
+    th.addEventListener("click", () => {
+      const rows = Array.from(table.querySelectorAll("tbody tr"));
+      rows.sort((a, b) => {
+        const av = a.children[idx].innerText.trim();
+        const bv = b.children[idx].innerText.trim();
+        const an = parseFloat(av);
+        const bn = parseFloat(bv);
+        if (!Number.isNaN(an) && !Number.isNaN(bn)) return desc ? bn - an : an - bn;
+        return desc ? bv.localeCompare(av) : av.localeCompare(bv);
+      });
+      const tbody = table.querySelector("tbody");
+      rows.forEach(r => tbody.appendChild(r));
+      desc = !desc;
+    });
+  });
+})();
+</script>
+{% endblock %}
